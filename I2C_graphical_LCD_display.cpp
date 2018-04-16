@@ -38,6 +38,7 @@
 																		Restructured line() for single entry/exit.
 																		Added boundary tests in deferred write logic.
  version 2.07	 15 April 2018		 BR	Added STM32F1 optimization to XL595 configuration
+ version 2.08	 16 April 2018		 BR	Imporoved STM32F1 optimizations using BSRR and BRR
  
  * These changes required hardware changes to pin configurations
    
@@ -182,9 +183,13 @@ const byte font [96] [5] PROGMEM = {
 
 #ifdef XL595
 
-#if defined(__AVR__) || defined(ARDUINO_ARCH_STM32F1)
+#if defined(__AVR__)
 #define clockPulse()	{*_clkPort |= _clkMask; *_clkPort &= ~(_clkMask);}
 #define bitOut(val)		{if (val) *_dataPort |= _dataMask; else *_dataPort &= ~(_dataMask);}
+#define sendBit(val)	{bitOut(val); clockPulse();}
+#elif defined(ARDUINO_ARCH_STM32F1)
+#define clockPulse()	{*_clkBSRR = _clkMask; *_clkBRR = _clkMask;}
+#define bitOut(val)		{if (val) *_dataBSRR = _dataMask; else *_dataBRR = _dataMask;}
 #define sendBit(val)	{bitOut(val); clockPulse();}
 #else
 #define clockPulse()	{digitalWrite(_clkPin, HIGH); digitalWrite(_clkPin, LOW);}
@@ -353,9 +358,11 @@ void I2C_graphical_LCD_display::begin (const byte port,
 	_clkMask = digitalPinToBitMask(_clkPin);
 #endif
 #if defined(ARDUINO_ARCH_STM32F1)
-	_dataPort = portOutputRegister(digitalPinToPort(_dataPin));
+	_dataBSRR = portSetRegister(_dataPin);
+	_dataBRR = portClearRegister(_dataPin);
 	_dataMask = digitalPinToBitMask(_dataPin);
-	_clkPort = portOutputRegister(digitalPinToPort(_clkPin));
+	_clkBSRR = portSetRegister(_clkPin);
+	_clkBRR = portClearRegister(_clkPin);
 	_clkMask = digitalPinToBitMask(_clkPin);
 #endif
 	pinMode(_dataPin, OUTPUT);
@@ -579,7 +586,6 @@ void I2C_graphical_LCD_display::writeData (byte data,
     data ^= 0xFF;
 
 #ifdef XL595
-//  delayMicroseconds (LCD_BUSY_DELAY);
 	sendXL595(data, LCD_DATA | LCD_ENABLE, _chipSelect);
 	sendXL595(data, LCD_DATA, _chipSelect);
 #else

@@ -38,6 +38,7 @@
 																		Restructured line() for single entry/exit.
 																		Added boundary tests in deferred write logic.
  version 2.07	 15 April 2018		 BR	Added STM32F1 optimization to XL595 configuration
+ version 2.08	 16 April 2018		 BR	Imporoved STM32F1 optimizations using BSRR and BRR
  
  * These changes required hardware changes to pin configurations
  
@@ -270,10 +271,12 @@ private:
 	uint8_t _highByte;
 	uint8_t _lowByte;
 	uint8_t _clkPin;
-	volatile uint32_t *_clkPort;
+	volatile uint32_t *_clkBSRR;
+	volatile uint32_t *_clkBRR;
 	uint32_t _clkMask;
 	uint8_t _dataPin;
-	volatile uint32_t *_dataPort;
+	volatile uint32_t *_dataBSRR;
+	volatile uint32_t *_dataBRR;
 	uint32_t _dataMask;
 	
 	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);

@@ -40,6 +40,7 @@
  version 2.07	 15 April 2018		 BR	Added STM32F1 optimization to XL595 configuration
  version 2.08	 16 April 2018		 BR	Imporoved STM32F1 optimizations using BSRR and BRR
  version 2.09	 17 April 2018		 BR	Added Teensyduino ARM optimization to XL595 configuration
+ version 2.10	 18 April 2018		 BR	Added Arduino SAMD (Zero etc.) optimization to XL595 configuration
  
  * These changes required hardware changes to pin configurations
  
@@ -306,6 +307,19 @@ private:
 	uint8_t _dataMask;
 	volatile uint8_t *_dataSet;
 	volatile uint8_t *_dataClear;
+	
+	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
+	void sendByte(const uint8_t value);
+
+#elif defined(ARDUINO_ARCH_SAMD)
+	uint8_t _highByte;
+	uint8_t _lowByte;
+	uint8_t _clkPin;
+	volatile uint32_t *_clkPort;
+	uint32_t _clkMask;
+	uint8_t _dataPin;
+	volatile uint32_t *_dataPort;
+	uint32_t _dataMask;
 	
 	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
 	void sendByte(const uint8_t value);

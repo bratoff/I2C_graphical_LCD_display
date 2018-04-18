@@ -40,6 +40,7 @@
  version 2.07	 15 April 2018		 BR	Added STM32F1 optimization to XL595 configuration
  version 2.08	 16 April 2018		 BR	Imporoved STM32F1 optimizations using BSRR and BRR
  version 2.09	 17 April 2018		 BR	Added Teensyduino ARM optimization to XL595 configuration
+ version 2.10	 18 April 2018		 BR	Added Arduino SAMD (Zero etc.) optimization to XL595 configuration
  
  * These changes required hardware changes to pin configurations
    
@@ -184,7 +185,7 @@ const byte font [96] [5] PROGMEM = {
 
 #ifdef XL595
 
-#if defined(__AVR__)
+#if defined(__AVR__) || defined(ARDUINO_ARCH_SAMD)
 #define clockPulse()	{*_clkPort |= _clkMask; *_clkPort &= ~(_clkMask);}
 #define bitOut(val)		{if (val) *_dataPort |= _dataMask; else *_dataPort &= ~(_dataMask);}
 
@@ -353,12 +354,10 @@ void I2C_graphical_LCD_display::begin (const byte port,
 	_dataPin = port;				// reuse first parameter as data pin
 	_clkPin = i2cAddress;		// reuse second parameter as clock pin
 
-#if defined(__AVR__)
-	uint8_t p = digitalPinToPort(_dataPin);
-	_dataPort = portOutputRegister(p);
+#if defined(__AVR__) || defined(ARDUINO_ARCH_SAMD)
+	_dataPort = portOutputRegister(digitalPinToPort(_dataPin));
 	_dataMask = digitalPinToBitMask(_dataPin);
-	uint8_t q = digitalPinToPort(_clkPin);
-	_clkPort = portOutputRegister(q);
+	_clkPort = portOutputRegister(digitalPinToPort(_clkPin));
 	_clkMask = digitalPinToBitMask(_clkPin);
 #endif
 #if defined(ARDUINO_ARCH_STM32F1)

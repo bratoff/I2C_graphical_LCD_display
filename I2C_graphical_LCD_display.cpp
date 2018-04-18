@@ -39,6 +39,7 @@
 																		Added boundary tests in deferred write logic.
  version 2.07	 15 April 2018		 BR	Added STM32F1 optimization to XL595 configuration
  version 2.08	 16 April 2018		 BR	Imporoved STM32F1 optimizations using BSRR and BRR
+ version 2.09	 17 April 2018		 BR	Added Teensyduino ARM optimization to XL595 configuration
  
  * These changes required hardware changes to pin configurations
    
@@ -186,69 +187,71 @@ const byte font [96] [5] PROGMEM = {
 #if defined(__AVR__)
 #define clockPulse()	{*_clkPort |= _clkMask; *_clkPort &= ~(_clkMask);}
 #define bitOut(val)		{if (val) *_dataPort |= _dataMask; else *_dataPort &= ~(_dataMask);}
-#define sendBit(val)	{bitOut(val); clockPulse();}
+
 #elif defined(ARDUINO_ARCH_STM32F1)
 #define clockPulse()	{*_clkBSRR = _clkMask; *_clkBRR = _clkMask;}
 #define bitOut(val)		{if (val) *_dataBSRR = _dataMask; else *_dataBRR = _dataMask;}
-#define sendBit(val)	{bitOut(val); clockPulse();}
+
+#elif defined(TEENSYDUINO) && (defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__))
+#define clockPulse()	{*_clkSet = 1; *_clkClear = 1;}
+#define bitOut(val)		{*_dataOut = val;}
+
+#elif defined(TEENSYDUINO) && defined(__MKL26Z64__)
+#define clockPulse()	{*_clkSet = _clkMask; *_clkClear = _clkMask;}
+#define bitOut(val)		{if (val) *_dataSet = _dataMask; else *_dataClear = _dataMask;}
+
 #else
 #define clockPulse()	{digitalWrite(_clkPin, HIGH); digitalWrite(_clkPin, LOW);}
 #define bitOut(val)		{if (val) digitalWrite(_dataPin, HIGH); else digitalWrite(_dataPin, LOW);}
-#define sendBit(val)	{bitOut(val); clockPulse();}
 #endif
+
+#define sendBit(val)	{bitOut(val); clockPulse();}
 
 void I2C_graphical_LCD_display::sendByte(uint8_t val)
 {
 	uint8_t t;
 	t = val;
-//	for(byte i=0; i<8; ++i)	// Shift out 8 bits
-//	{
-		sendBit(t & 0x01)		// Unrolled loop for speed
-		t >>= 1;
-		sendBit(t & 0x01)
-		t >>= 1;
-		sendBit(t & 0x01)
-		t >>= 1;
-		sendBit(t & 0x01)
-		t >>= 1;
-		sendBit(t & 0x01)
-		t >>= 1;
-		sendBit(t & 0x01)
-		t >>= 1;
-		sendBit(t & 0x01)
-		t >>= 1;
-		sendBit(t & 0x01)
-		t >>= 1;
-//	}
+	sendBit(t & 0x01)		// Unrolled loop for speed
+	t >>= 1;
+	sendBit(t & 0x01)
+	t >>= 1;
+	sendBit(t & 0x01)
+	t >>= 1;
+	sendBit(t & 0x01)
+	t >>= 1;
+	sendBit(t & 0x01)
+	t >>= 1;
+	sendBit(t & 0x01)
+	t >>= 1;
+	sendBit(t & 0x01)
+	t >>= 1;
+	sendBit(t & 0x01)
 }
 
 void I2C_graphical_LCD_display::sendXL595 (const byte data, const byte lowFlags, const byte highFlags)
 {
-//	byte i;
 	_lowByte = ((data << 5) & 0xe0) | lowFlags | 0x01;		// Combine bits 0-2, DI and EN, latch enable
 	_highByte = ((data >> 3) & 0x1f) | highFlags | 0x80;				// Bits 3-7, chipselects, latch command
 
 	sendByte(_lowByte);			// Load the shift registers
 	sendByte(_highByte);		// (latch gets set when leading 1 clocks into IC2 QH)
 	bitOut(0);
-//	for(i=0; i<16; i++) {	// Clear the shift registers
-		clockPulse();					// (Unrolled loop for speed)
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-		clockPulse();
-//	}
+	clockPulse();					// (Unrolled loop for speed)
+	clockPulse();					// This clears the whole shift register,
+	clockPulse();					// ensuring that the latch bit stays low
+	clockPulse();					// while the next 16-bit word is clocked in.
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
+	clockPulse();
 }
 #endif
 
@@ -349,6 +352,7 @@ void I2C_graphical_LCD_display::begin (const byte port,
 	_ssPin = 0;
 	_dataPin = port;				// reuse first parameter as data pin
 	_clkPin = i2cAddress;		// reuse second parameter as clock pin
+
 #if defined(__AVR__)
 	uint8_t p = digitalPinToPort(_dataPin);
 	_dataPort = portOutputRegister(p);
@@ -365,6 +369,20 @@ void I2C_graphical_LCD_display::begin (const byte port,
 	_clkBRR = portClearRegister(_clkPin);
 	_clkMask = digitalPinToBitMask(_clkPin);
 #endif
+#if defined(TEENSYDUINO) && (defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__))
+	_dataOut = portOutputRegister(_dataPin);
+	_clkSet = portSetRegister(_clkPin);
+	_clkClear = portClearRegister(_clkPin);
+#endif
+#if defined(TEENSYDUINO) && defined(__MKL26Z64__)
+	_dataMask = digitalPinToBitMask(_dataPin);
+	_dataSet = portSetRegister(_dataPin);
+	_dataClear = portClearRegister(_dataPin);
+	_clkMask = digitalPinToBitMask(_clkPin);
+	_clkSet = portSetRegister(_clkPin);
+	_clkClear = portClearRegister(_clkPin);
+#endif
+
 	pinMode(_dataPin, OUTPUT);
 	pinMode(_clkPin, OUTPUT);
 	digitalWrite(_dataPin, LOW);

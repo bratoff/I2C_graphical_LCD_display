@@ -39,6 +39,7 @@
 																		Added boundary tests in deferred write logic.
  version 2.07	 15 April 2018		 BR	Added STM32F1 optimization to XL595 configuration
  version 2.08	 16 April 2018		 BR	Imporoved STM32F1 optimizations using BSRR and BRR
+ version 2.09	 17 April 2018		 BR	Added Teensyduino ARM optimization to XL595 configuration
  
  * These changes required hardware changes to pin configurations
  
@@ -266,8 +267,8 @@ private:
 	
 	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
 	void sendByte(const uint8_t value);
-#endif
-#if defined(ARDUINO_ARCH_STM32F1)
+
+#elif defined(ARDUINO_ARCH_STM32F1)
 	uint8_t _highByte;
 	uint8_t _lowByte;
 	uint8_t _clkPin;
@@ -281,9 +282,46 @@ private:
 	
 	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
 	void sendByte(const uint8_t value);
+
+#elif defined(TEENSYDUINO) && (defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__))
+	uint8_t _highByte;
+	uint8_t _lowByte;
+	uint8_t _clkPin;
+	volatile uint8_t *_clkSet;
+	volatile uint8_t *_clkClear;
+	uint8_t _dataPin;
+	volatile uint8_t *_dataOut;
+	
+	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
+	void sendByte(const uint8_t value);
+
+#elif defined(TEENSYDUINO) && defined(__MKL26Z64__)
+	uint8_t _highByte;
+	uint8_t _lowByte;
+	uint8_t _clkPin;
+	uint8_t _clkMask;
+	volatile uint8_t *_clkSet;
+	volatile uint8_t *_clkClear;
+	uint8_t _dataPin;
+	uint8_t _dataMask;
+	volatile uint8_t *_dataSet;
+	volatile uint8_t *_dataClear;
+	
+	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
+	void sendByte(const uint8_t value);
+
+#else
+	uint8_t _highByte;
+	uint8_t _lowByte;
+	uint8_t _clkPin;
+	uint8_t _dataPin;
+	
+	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
+	void sendByte(const uint8_t value);
 #endif
 
 #endif
+
   void expanderWrite (const byte reg, const byte data);
   byte readData ();
   void startSend ();    // prepare for sending to MCP23017  (eg. set SS low)

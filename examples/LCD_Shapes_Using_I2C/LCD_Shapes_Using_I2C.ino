@@ -1,11 +1,15 @@
 
-// Demo of KS0108B graphics LCD screen connected to MCP23017 16-port I/O expander
-// This demo shows the shape drawing functions
-// uses Nick Gammon's KS0108 library as modified by Bruce Ratoff
+// Demo of KS0108B graphics LCD screen connected to MCP23017 16-port I2C expander,
+//  MCP23S17 16-port SPI expander, or dual 74HC595 interface per KO4XL.
+//  See library comments for wiring connections.
 
-// Author: Bruce Ratoff
-// Date: 10 August 2017
+// Based on a demo by Nick Gammon
+// Modified 10 August 2017 by Bruce Ratoff KO4XL
+//  to work with my upgrade of Nick's library
 //
+
+// Before using the library, edit configuration options in I2C_graphical_LCD_display.h
+// (Unused interfaces are compiled out to keep size to a minimum.)
 
 #include <I2C_graphical_LCD_display.h>
 
@@ -20,9 +24,9 @@ const byte picture [] PROGMEM = {
 
 void setup () 
 {
-//  lcd.begin ();     // Use this for I2C mode
-//  lcd.begin(0x20, 0, 10);   // Use this for SPI mode
-  lcd.begin(11, 12);  // Use this for 595H mode (data pin, clock pin)
+//  lcd.begin ();           // Use this form for I2C mode - uses hardware I2C pins
+//  lcd.begin(0x20, 0, 10); // Use this form for SPI mode - args are SPI port, SPI address and SS pin
+  lcd.begin(2,3);           // Use this form for 595 mode - args are data pin, clock pin
 
   unsigned long startTime = millis();
 
@@ -58,7 +62,7 @@ void setup ()
 }  // end of setup
 
 void loop () 
-{}  // nothing to see here, move along
+{}  // end of main loop
 
 
 

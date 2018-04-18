@@ -1,12 +1,15 @@
 
-// Demo of KS0108B graphics LCD screen connected to MCP23017 16-port I/O expander
+// Demo of KS0108B graphics LCD screen connected to MCP23017 16-port I2C expander,
+//  MCP23S17 16-port SPI expander, or dual 74HC595 interface per KO4XL.
+//  See library comments for wiring connections.
 
-// Author: Nick Gammon
-// Date: 14 February 2011
-// Modified 10 August 2017 by Bruce Ratoff
-//  to work with my modifications to Nick's library
+// Based on a demo by Nick Gammon
+// Modified 10 August 2017 by Bruce Ratoff KO4XL
+//  to work with my upgrade of Nick's library
 //
 
+// Before using the library, edit configuration options in I2C_graphical_LCD_display.h
+// (Unused interfaces are compiled out to keep size to a minimum.)
 #include <I2C_graphical_LCD_display.h>
 
 I2C_graphical_LCD_display lcd;
@@ -21,9 +24,14 @@ const byte picture [] PROGMEM = {
 
 void setup () 
 {
-//  lcd.begin ();     // Use this for I2C mode
-//  lcd.begin(0x20, 0, 10);   // Use this for SPI mode
-  lcd.begin(11,12);   // data pin, clock pin for 595H mode
+//  lcd.begin ();           // Use this form for I2C mode - uses hardware I2C pins
+//  lcd.begin(0x20, 0, 10); // Use this form for SPI mode - args are SPI port, SPI address and SS pin
+  lcd.begin(2,3);           // Use this form for 595 mode - args are data pin, clock pin
+}  // end of setup
+
+void loop () 
+{
+  lcd.clear();
 
   unsigned long startTime = millis();           // Time these functions
 
@@ -52,11 +60,19 @@ void setup ()
 
   lcd.gotoxy (80, 56);
   lcd.print(millis() - startTime);    // Display execution time
-	lcd.print(" ms");
-}  // end of setup
+  lcd.print(" ms");
 
-void loop () 
-{}  // nothing to see here, move along
+  delay(2000);
+  lcd.clear();
+  startTime = millis();
+  lcd.print("Circle drawing:");
+  lcd.circle(20,32,16,1);
+  lcd.fillCircle(60,32,16,1);
+  lcd.gotoxy(80,56);
+  lcd.print(millis() - startTime);
+  lcd.print(" ms");
+  delay(2000);
+}  // end of main loop
 
 
 

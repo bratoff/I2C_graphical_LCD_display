@@ -23,5 +23,5 @@ Other enhancements include:
 - Conditional compilations based on presence of I2C and/or SPI libraries to reduce code size
 - Platform-specific optimizations for AVR and some ARM architectures
 
-The eagle directory contains the Eagle CAD 7.x schematic and board layout for the 74HC595
-interface. The board is available on Oshpark at https://oshpark.com/shared_projects/ggrOvewK
+The eagle directory contains the Eagle CAD 7.x schematics and board layouts for the 74HC595
+interface and the MCP23x17 inteface. The boards are available on Oshpark at https://oshpark.com/shared_projects/ggrOvewK (74HC595 version) and https://oshpark.com/shared_projects/1TWaorN2 (MCP23x17 version).

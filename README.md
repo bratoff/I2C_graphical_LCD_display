@@ -1,9 +1,10 @@
 I2C_graphical_LCD_display
 =========================
 
-Arduino library for KS0108 LCD displays using I2C, SPI or 2-wire 74HC595 protocol.
+Arduino library for LCD displays using I2C protocol.
 
 Forked from https://github.com/nickgammon/I2C_graphical_LCD_display
+
 Enhanced by Bruce Ratoff, KO4XL@yahoo.com, https://github.com/bratoff
 
 For details about the theory, wiring, schematic, etc. see:
@@ -21,7 +22,9 @@ Other enhancements include:
 - Significant speed improvement in WRITETHRU_CACHE mode
 - Optimization of shape drawing algorithms
 - Conditional compilations based on presence of I2C and/or SPI libraries to reduce code size
-- Platform-specific optimizations for AVR and some ARM architectures
+- Platform-specific optimizations for AVR, some ARM architectures and ESP8266
 
-The eagle directory contains the Eagle CAD 7.x schematics and board layouts for the 74HC595
-interface and the MCP23x17 inteface. The boards are available on Oshpark at https://oshpark.com/shared_projects/ggrOvewK (74HC595 version) and https://oshpark.com/shared_projects/1TWaorN2 (MCP23x17 version).
+Versions 2.x and 3.x Enhanced by B.Ratoff
+Version 2.x - Add circle drawing
+Version 3.x - Add support for 74HC595 2-wire interface see code comments for circuit info
+Version 4.x - Eliminate need to include I2C and SPI libraries when 74HC595 is used

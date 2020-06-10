@@ -11,9 +11,10 @@ setPixel	KEYWORD2
 fillRect	KEYWORD2
 frameRect	KEYWORD2
 line	KEYWORD2
-scroll	KEYWORD2
+scroll KEYWORD2
 circle	KEYWORD2
 fillCircle	KEYWORD2
 write	KEYWORD2
 setInv	KEYWORD2
 textSize	KEYWORD2
+setFont	KEYWORD2

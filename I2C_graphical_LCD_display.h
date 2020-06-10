@@ -5,9 +5,6 @@
  Written by Nick Gammon.
  Date: 14 February 2011.
  
- Updated by Bruce Ratoff, KO4XL
- Date: 09 August 2017
- 
  HISTORY
  
  Version 1.0 : 15 February 2011
@@ -20,30 +17,34 @@
  Version 1.7 : 13 April 2011     -- made the bitmap for letter "Q" look a bit better
  Version 1.8 : 10 March 2012     -- adapted to work on Arduino IDE 1.0 onwards
  Version 1.9 : 26 May 2012       -- default to I2C rather than SPI on the begin() function
-																 -- also increased initial LCD_BUSY_DELAY from 20 to 50 uS
+ -- also increased initial LCD_BUSY_DELAY from 20 to 50 uS
  Version 1.10:  8 July 2012      -- fixed issue with dropping enable before reading from display
  Version 1.11: 15 August 2014    -- added support for Print class, and an inverse mode
+ 
+ Forked by Bruce Ratoff
+ Date: 03 December 2016
+ 
+ Version 2.0 : 03 December 2016  -- added open and filled circle drawing capability
+						 :									 -- optimized several drawing functions
+ Version 2.1 : 10 December 2016  -- added setFont() to support additional fonts in letter()
+ Version 2.2 : 11 December 2016  -- add edge clipping for all shapes
 
- Version 2.00:  9 August 2017		 BR Added conditional compile for KO4XL board layout
- Version 2.01: 10 August 2017    BR Added circle() and fillCircle() functions
- version 2.02: 11 August 2017    BR Added "XL595" dual 74HC595 interface support
- version 2.03: 16 September 2017 BR Significant speed improvements when WRITETHROUGH_CACHE enabled,
-                                    Speed improvements to filled circle algorithm.
- version 2.04	 18	September 2017 BR Add textSize() for printing enlarged text
- version 2.05  01 October 2017	 BR Implement deferred writes when WRITETHROUGH_CACHE enabled,
-																		which dramatically improves shape drawing times
- version 2.06	 05 October 2017	 BR	Modified letter() to eliminate extra buffer and update cache
-																		directly when WRITETHROUGH_CACHE is enabled, using deferred
-																		write infrastructure.
-																		Restructured line() for single entry/exit.
-																		Added boundary tests in deferred write logic.
- version 2.07	 15 April 2018		 BR	Added STM32F1 optimization to XL595 configuration
- version 2.08	 16 April 2018		 BR	Imporoved STM32F1 optimizations using BSRR and BRR
- version 2.09	 17 April 2018		 BR	Added Teensyduino ARM optimization to XL595 configuration
- version 2.10	 18 April 2018		 BR	Added Arduino SAMD (Zero etc.) optimization to XL595 configuration
- 
- * These changes required hardware changes to pin configurations
- 
+ Version 3.0 : 02 February 2017  -- add support for 74HC595 2-wire interface
+ Version 3.1 : 08 February 2017  -- add optimized bit operations for AVR architecture
+ Version 3.2 : 12 February 2017  -- optimize 2-wire by combining shift and latch operations
+ Version 3.3 : 19 April 2017     -- optimize bit operations for popular ARM boards
+                                 -- fixed compilation errors for ARM boards
+																 -- add SPI and I2C includes so they're no longer needed in calling program
+
+ Version 4.0 : 20 April 2017     -- Add #defines for each interface type so that extra libraries don't get included
+                                 -- The library will assume the 74HC595 (2-wire) interface by default
+																 -- To use MCP23017 interface, #define MCP23017
+																 -- To use MCP23S17 interface, #define MCP23S17
+																 -- These defines must appear in calling app PRIOR to including this library
+
+ version 4.1 : 08 June 2020			 -- Added bit operation optimization for ESP8266																 
+
+  * These changes required hardware changes to pin configurations
 
  PERMISSION TO DISTRIBUTE
  
@@ -66,23 +67,14 @@
  tort or otherwise, arising from, out of or in connection with the software 
  or the use or other dealings in the software. 
  
-*/
-
+ */
+//#define DEBUG
 
 #ifndef I2C_graphical_LCD_display_H
 #define I2C_graphical_LCD_display_H
 
-#define WRITETHROUGH_CACHE
-
-// Enable this define only if using KO4XL's pin assignment on MCP23x17
-//#define KO4XL
-
-// Enable this define only if using KO4XL's 2-wire dual 74HC595 interface
-#define XL595
-
-// You need to include at least one of these if using MCP23x17
-//#include <Wire.h>
-//#include <SPI.h>
+// Define this to cache display content instead of reading back from display
+//#define WRITETHROUGH_CACHE
 
 #if defined(ARDUINO) && ARDUINO >= 100
   #include "Arduino.h"
@@ -90,21 +82,29 @@
   #include <WProgram.h>
 #endif
 
-#if defined(XL595)
-// 74HC595 interface has no read capability so we must use writethrough cache
-#if !defined(WRITETHROUGH_CACHE)
+#if defined(MCP23017)
+#include <Wire.h>
+#elif defined(MCP23S17)
+#include <SPI.h>
+#endif
+
+#if defined(MCP23017) || defined(MCP23S17)
+#define MCP23x17
+#endif
+
+// WRITETHROUGH_CACHE must be defined if 2-wire interface is used
+#if !defined(MCP23x17) && !defined(WRITETHROUGH_CACHE)
 #define WRITETHROUGH_CACHE
 #endif
-#endif
 
-#if defined(__AVR__) || defined(ARDUINO_ARCH_SAMD) || defined(__RFduino__) || defined(ARDUINO_ARCH_STM32F1)
+#if defined(__AVR__)
 #include <avr/pgmspace.h>
-#else
-#include <pgmspace.h>
+#elif !defined(pgm_read_byte)
+#define pgm_read_byte(addr) (*(const unsigned char *)(addr))
 #endif
 
-// MCP23017 registers (everything except direction defaults to 0)
-#if !defined(XL595)
+// MCP23017/MCP23S17 registers (everything except direction defaults to 0)
+
 #define IODIRA   0x00   // IO direction  (0 = output, 1 = input (Default))
 #define IODIRB   0x01
 #define IOPOLA   0x02   // IO polarity   (0 = normal, 1 = inverse)
@@ -127,34 +127,26 @@
 #define GPIOB    0x13
 #define OLLATA   0x14   // Output latch. Write to latch output.
 #define OLLATB   0x15
-#endif
 
 
 /*
 
- Nick's mappings of the KS0108 registers:
+ My mappings of the KS0108 registers:
  
 
  LCD PIN  MCP23017 PIN  Name   Purpose
  
  ---- Wire these pins together as shown ------
  
- --- Port "A" - control lines (Nick's original version)
+ --- Port "A" - control lines
+ 
   6      28 (GPA7)     E      Enable data transfer on 1 -> 0 transition  (see LCD_ENABLE)
   5      27 (GPA6)     R/~W   1 = read, 0 = write (to LCD) (see LCD_READ)
   4      26 (GPA5)     D/~I   1 = data, 0 = instruction    (see LCD_DATA)
  17      25 (GPA4)     ~RST   1 = not reset, 0 = reset
  16      24 (GPA3)     CS2    Chip select for IC2 (1 = active)  (see LCD_CS2)
  15      23 (GPA2)     CS1    Chip select for IC1 (1 = active)  (see LCD_CS1)
-
- --- Port "A" - control lines (Bruce's version)
- 17      23 (GPA2)     ~RST   1 = not reset, 0 = reset
- 16      24 (GPA3)     CS2    Chip select for IC2 (1 = active)  (see LCD_CS2)
- 15      25 (GPA4)     CS1    Chip select for IC1 (1 = active)  (see LCD_CS1)
-  6      26 (GPA5)     E      Enable data transfer on 1 -> 0 transition  (see LCD_ENABLE)
-  5      27 (GPA6)     R/~W   1 = read, 0 = write (to LCD) (see LCD_READ)
-  4      28 (GPA7)     D/~I   1 = data, 0 = instruction    (see LCD_DATA)
-
+ 
  --- Port "B" - data lines
  
   7      1  (GPB0)     DB0    Data bit 0
@@ -196,34 +188,88 @@
  22   (GPA1)           Not used
  23   (GPA2)           Not used
  
- */
+ IMPORTANT: For reliable operation:
+			1.	Place 0.1 ufd bypass capacitors across pins 1&2 of the LCD and across pins 9&10 of the MCP23017.
+			2.	If using I2C, add 4.7K pull-ups from pin 12 to +5v and pin 13 to +5v on the MCP23017.
 
-// 74HC595 LCD control pin layout
-#if defined(XL595)
-#define LCD_CS1    0b00100000
-#define LCD_CS2    0b01000000
-#define LCD_RESET  0b00000000
-#define LCD_DATA   0b00010000
-#define LCD_READ   0b00000000
-#define LCD_ENABLE 0b00001000
-#endif
+======== CONNECTIONS FOR 74HC595 2-wire INTERFACE ========
+
+LCD pins 1,2,3,18,19,20 are connected same as above
+LCD pin 5 (R/~W) is connected to GND
+LCD pin 17 (~RST) is tied to +5v via a 10K resistor
+
+---- Pins on 74HC595 (uses 2) ----
+IC1
+  1	  (QB)			   CS2	   LCD pin 16
+  2   (QC)			   CS1	   LCD pin 15
+  3   (QD)			   D7		   LCD pin 14
+  4   (QE)         D6      LCD pin 13
+  5   (QF)         D5      LCD pin 12
+  6   (QG)         D4      LCD pin 11
+  7   (QH)         D3      LCD pin 10
+  8   (VSS)        GND     Ground for IC1
+  9   (QH*)        Carry   IC2 pin 14 (SER) IC1 shift register out to IC2 shift register in
+ 10   (SCL)        +5V     IC1 clear input pulled high (always disabled)
+ 11   (SCK)        CLK     Arduino output pin for CLK (NOTE: Same for IC1 and IC2)
+ 12   (RCK)        LATCH   IC2 pin 12 and anode of D1
+ 13   (G)          GND     IC1 output enable pulled low (always enabled)
+ 14   (SER)        DATA    Free side of R1 (see below) and Arduino output pin for DATA
+ 15   (QA)                 No connection
+ 16   (VDD)        +5V     Power for IC1
+ 
+IC2
+  1	  (QB)			   D1	   	 LCD pin 8
+  2   (QC)			   D0	   	 LCD pin 7
+  3   (QD)			   DI	   	 LCD pin 4
+  4   (QE)         Enable	 LCD pin 6
+  5   (QF)               	 No connection
+  6   (QG)                 No connection
+  7   (QH)                 No connection
+  8   (VSS)        GND     Ground for IC2
+  9   (QH*)        Control Cathode of D1
+ 10   (SCL)        +5V     IC2 clear input pulled high (always disabled)
+ 11   (SCK)        CLK     Arduino output pin for CLK (NOTE: Same for IC1 and IC2)
+ 12   (RCK)        LATCH   IC1 pin 12 and anode of D1 (NOTE: Same for IC1 and IC2)
+ 13   (G)          GND     IC2 output enable pulled low (always enabled - Same for IC1 and IC2)
+ 14   (SER)        Carry   IC1 pin 9 (QH*) IC2 shift register in from IC1 shift register out
+ 15   (QA)         D2      LCD pin 9
+ 16   (VDD)        +5V     Power for IC2
+ 
+2-wire Control circuit:
+																	o Control (from IC2 pin 9)
+																	|
+																	D1 (cathode)
+																	D1 (anode)
+																	|
+	DATA (from Arduino) o----R1-----o----o LATCH (to IC1 and IC2 pin 12)
+													(1K)
+
+LCD Power On Reset circuit:
+								   +5V
+									|
+									R3 (1K)
+									|
+									o----o LCD_RST (LCD pin 17)
+									|
+									C3 (1uf)
+									|
+									V
+								   GND
+
+For reliable operation, place a 0.1 ufd bypass capacitor across power pins (8 and 16) of each 74HC595
+
+*/
+
+
 // GPA port - these show which wires from the LCD are connected to which pins on the I/O expander
-#if defined(KO4XL)
-#define LCD_CS1    0b00010000   // chip select 1  (pin 25)                            0x10
-#define LCD_CS2    0b00001000   // chip select 2  (pin 24)                            0x08
-#define LCD_RESET  0b00000100   // reset (pin 23)                                     0x04
-#define LCD_DATA   0b10000000   // 1xxxxxxx = data; 0xxxxxxx = instruction  (pin 28)  0x80
-#define LCD_READ   0b01000000   // x1xxxxxx = read; x0xxxxxx = write  (pin 27)        0x40
-#define LCD_ENABLE 0b00100000   // enable by toggling high/low  (pin 26)              0x20
-#endif
-#if !defined(KO4XL) && !defined(XL595)
+
 #define LCD_CS1    0b00000100   // chip select 1  (pin 23)                            0x04
 #define LCD_CS2    0b00001000   // chip select 2  (pin 24)                            0x08
 #define LCD_RESET  0b00010000   // reset (pin 25)                                     0x10
 #define LCD_DATA   0b00100000   // 1xxxxxxx = data; 0xxxxxxx = instruction  (pin 26)  0x20
 #define LCD_READ   0b01000000   // x1xxxxxx = read; x0xxxxxx = write  (pin 27)        0x40
 #define LCD_ENABLE 0b10000000   // enable by toggling high/low  (pin 28)              0x80
-#endif
+
 
 // Commands sent when LCD in "instruction" mode (LCD_DATA bit set to 0)
 
@@ -244,120 +290,58 @@ private:
   byte _port;        // port that the MCP23017 is on (should be 0x20 to 0x27)
   byte _ssPin;       // if non-zero use SPI rather than I2C (and this is the SS pin)
 
-#ifdef WRITETHROUGH_CACHE
-  byte _cache [64 * 128 / 8];
-  short  _cacheOffset;
-	boolean _delayedWrite;
-	byte 	_leftX;
-	byte	_rightX;
-	byte	_topY;
-	byte	_bottomY;
-#endif
-
-#ifdef XL595
-
-#if defined(__AVR__)
-	uint8_t _highByte;
-	uint8_t _lowByte;
-	uint8_t _clkPin;
-	volatile uint8_t *_clkPort;
-	uint8_t _clkMask;
-	uint8_t _dataPin;
-	volatile uint8_t *_dataPort;
-	uint8_t _dataMask;
-	
-	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
-	void sendByte(const uint8_t value);
-
-#elif defined(ARDUINO_ARCH_STM32F1)
-	uint8_t _highByte;
-	uint8_t _lowByte;
-	uint8_t _clkPin;
-	volatile uint32_t *_clkBSRR;
-	volatile uint32_t *_clkBRR;
-	uint32_t _clkMask;
-	uint8_t _dataPin;
-	volatile uint32_t *_dataBSRR;
-	volatile uint32_t *_dataBRR;
-	uint32_t _dataMask;
-	
-	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
-	void sendByte(const uint8_t value);
-
-#elif defined(TEENSYDUINO) && (defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__))
-	uint8_t _highByte;
-	uint8_t _lowByte;
-	uint8_t _clkPin;
-	volatile uint8_t *_clkSet;
-	volatile uint8_t *_clkClear;
-	uint8_t _dataPin;
-	volatile uint8_t *_dataOut;
-	
-	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
-	void sendByte(const uint8_t value);
-
-#elif defined(TEENSYDUINO) && defined(__MKL26Z64__)
-	uint8_t _highByte;
-	uint8_t _lowByte;
-	uint8_t _clkPin;
-	uint8_t _clkMask;
-	volatile uint8_t *_clkSet;
-	volatile uint8_t *_clkClear;
-	uint8_t _dataPin;
-	uint8_t _dataMask;
-	volatile uint8_t *_dataSet;
-	volatile uint8_t *_dataClear;
-	
-	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
-	void sendByte(const uint8_t value);
-
-#elif defined(ARDUINO_ARCH_SAMD)
-	uint8_t _highByte;
-	uint8_t _lowByte;
-	uint8_t _clkPin;
-	volatile uint32_t *_clkPort;
-	uint32_t _clkMask;
-	uint8_t _dataPin;
-	volatile uint32_t *_dataPort;
-	uint32_t _dataMask;
-	
-	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
-	void sendByte(const uint8_t value);
-
-#else
-	uint8_t _highByte;
-	uint8_t _lowByte;
-	uint8_t _clkPin;
-	uint8_t _dataPin;
-	
-	void sendXL595(const byte data, const byte lowFlags, const byte highFlags);
-	void sendByte(const uint8_t value);
-#endif
-
-#endif
-
-  void expanderWrite (const byte reg, const byte data);
   byte readData ();
+
+#if defined(MCP23x17)
+  void expanderWrite (const byte reg, const byte data);
   void startSend ();    // prepare for sending to MCP23017  (eg. set SS low)
   void doSend (const byte what);  // send a byte to the MCP23017
   void endSend ();      // finished sending  (eg. set SS high)
-
-#ifdef WRITETHROUGH_CACHE
-	void startDelayedWrite();
-	void endDelayedWrite();
-	void updateDelayedWrite(const byte x, const byte y);
-
+#else
+	void do2wireSend (const byte rs, const byte data, const byte enable);		// Send command or data on 2-wire interface
 #endif
 
   boolean _invmode;
-	byte _textsize;
   
+  const byte * _fMap;		// pointer to current font table
+  int _fWidth;		// width of current font
+  bool _fSpace;		// should we add a space after each character
+  byte _fStart;		// starting character in font
+  int _fLength;		// number of chars in current font
+
+  byte _clkPin;		// pin for 2-wire CLK
+  byte _dataPin;	// pin for 2-wire DATA
+#if defined(__AVR__) && !defined(MCP23x17)
+  volatile byte * _clkPort;	// CLK port
+  byte _clkMask;	// CLK bitmask
+  volatile byte * _dataPort;	// DATA port
+  byte _dataMask;	// DATA bitmask
+#elif defined(ARDUINO_ARCH_SAMD) && !defined(MCP23x17)
+	volatile uint32_t * _clkPort;
+	uint32_t _clkMask;
+	volatile uint32_t * _dataPort;
+	uint32_t _dataMask;
+#elif defined(ARDUINO_ARCH_ESP8266)
+	uint16_t _clkMask;
+	uint16_t _dataMask;
+#endif
+
+#ifdef WRITETHROUGH_CACHE
+  byte _cache [64 * 128 / 8];
+  int  _cacheOffset;
+#endif
   
 public:
   
   // constructor
-  I2C_graphical_LCD_display () : _port (0x20), _ssPin (10), _invmode(false) {};
-  
+#if defined(MCP23x17)
+  I2C_graphical_LCD_display () : _port (0x20), _ssPin (10), _invmode(false), _clkPin(0), _dataPin(0) {};
+#else
+  I2C_graphical_LCD_display (const byte clkPin, const byte dataPin) :
+								_port (0x20), _ssPin(0), _invmode(false)
+								{_clkPin = clkPin; _dataPin = dataPin;};
+#endif
+
   void begin (const byte port = 0x20, const byte i2cAddress = 0, const byte ssPin = 0);
   void cmd (const byte data);
   void gotoxy (byte x, byte y);
@@ -367,7 +351,7 @@ public:
   void letter (byte c) {letter(c, _invmode);}
   void string (const char * s, const boolean inv);
   void string (const char * s) {string(s, _invmode);}
-  void blit (const byte * pic, const unsigned short size);
+  void blit (const byte * pic, const unsigned int size);
   void clear (const byte x1 = 0,    // start pixel
               const byte y1 = 0,     
               const byte x2 = 127,  // end pixel
@@ -389,26 +373,29 @@ public:
               const byte y1 = 0,     
               const byte x2 = 127,  // end pixel
               const byte y2 = 63,   
-              const byte val = 1);  // what to draw (0 = white, 1 = black)
-	void circle (const byte x = 64,		// Center of circle
-							 const byte y = 32,
-							 const byte r = 30,		// Radius
-							 const byte val = 1);	// what to draw (0 = white, 1 = black)
-	void fillCircle (const byte x = 64,		// Center of circle
-									 const byte y = 32,
-									 const byte r = 30,		// Radius
-									 const byte val = 1);	// what to draw (0 = white, 1 = black)
+              const byte val = 1);  // what to draw (0 = white, 1 = black) 
   void scroll (const byte y = 0);   // set scroll position
+  void circle (const byte x = 0,		// center point x
+			   const byte y = 0,		// center point y
+			   const byte r = 1,		// radius
+			   const byte val = 1);		// color (0 = white, 1 = black)
+  void fillCircle (const byte x = 0,		// center point x
+					 const byte y = 0,		// center point y
+					 const byte r = 1,		// radius
+					 const byte val = 1);	// color (0 = white, 1 = black)
 
 #if defined(ARDUINO) && ARDUINO >= 100
-	size_t write(uint8_t c) {letter(c, _invmode); return 1; }
+	virtual size_t write(uint8_t c) {letter(c, _invmode); return 1; }
 #else
 	void write(uint8_t c) { letter(c, _invmode); }
 #endif
 
-  void setInv(boolean inv) {_invmode = inv;} // set inverse mode state true == inverse
-	void textSize(const byte s = 1) {_textsize = (s > 0 && s < 5) ? s : _textsize;}
-  
+	void setInv(boolean inv) {_invmode = inv;} // set inverse mode state true == inverse
+	void setFont(const void * fontMap = NULL,			// Set font table (assumed in PROGMEM)
+				 const int width = 5,			// Width of a character
+				 const bool space = true,		// Add space after each character?
+				 const byte start = 0x20,		// First character in font
+				 const int length = 96);		// Number of characters in font
 };
 
 #endif  // I2C_graphical_LCD_display_H

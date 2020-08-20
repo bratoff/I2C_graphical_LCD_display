@@ -24,6 +24,10 @@ Other enhancements include:
 - Conditional compilations based on presence of I2C and/or SPI libraries to reduce code size
 - Platform-specific optimizations for AVR, some ARM architectures and ESP8266
 
+PCBs can be ordered from OshPark.com:  
+Shift register (2 wire) version:  <https://oshpark.com/shared_projects/ggrOvewK>  
+I2C/SPI version:  <https://oshpark.com/shared_projects/1TWaorN2>  
+
 Versions 2.x and 3.x Enhanced by B.Ratoff  
 Version 2.x - Add circle drawing  
 Version 3.x - Add support for 74HC595 2-wire interface see code comments for circuit info  

@@ -1,7 +1,7 @@
 I2C_graphical_LCD_display
 =========================
 
-Arduino library for LCD displays using I2C protocol.
+Arduino library for KS0108 LCD displays using I2C, SPI or bit-bang serial protocol.
 
 Forked from https://github.com/nickgammon/I2C_graphical_LCD_display
 

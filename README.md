@@ -24,7 +24,7 @@ Other enhancements include:
 - Conditional compilations based on presence of I2C and/or SPI libraries to reduce code size
 - Platform-specific optimizations for AVR, some ARM architectures and ESP8266
 
-Versions 2.x and 3.x Enhanced by B.Ratoff
-Version 2.x - Add circle drawing
-Version 3.x - Add support for 74HC595 2-wire interface see code comments for circuit info
-Version 4.x - Eliminate need to include I2C and SPI libraries when 74HC595 is used
+Versions 2.x and 3.x Enhanced by B.Ratoff  
+Version 2.x - Add circle drawing  
+Version 3.x - Add support for 74HC595 2-wire interface see code comments for circuit info  
+Version 4.x - Eliminate need to include I2C and SPI libraries when 74HC595 is used  
